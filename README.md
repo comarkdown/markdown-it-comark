@@ -17,8 +17,8 @@ npm i markdown-it @comark/markdown-it
 ```
 
 ```ts
-import MarkdownIt from 'markdown-it'
 import comark from '@comark/markdown-it'
+import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt()
   .use(comark)
