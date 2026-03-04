@@ -43,6 +43,7 @@ export const MarkdownItMdcBlock: MarkdownIt.PluginSimple = (md) => {
             else
               tokenOpen.attrSet(key, value)
           })
+          tokenOpen.map = [startLine, startLine + 1]
 
           // Create inline container for the content
           const inline = state.push('inline', '', 0)
@@ -51,11 +52,13 @@ export const MarkdownItMdcBlock: MarkdownIt.PluginSimple = (md) => {
           text.content = content
           inline.children = [text]
 
-          state.push('mdc_block_shorthand', name, -1)
+          const tokenClose = state.push('mdc_block_shorthand', name, -1)
+          tokenClose.map = [startLine, startLine + 1]
         }
         else {
           // Self-closing component
           const token = state.push('mdc_block_shorthand', name, 0)
+          token.map = [startLine, startLine + 1]
           props?.forEach(([key, value]) => {
             if (key === 'class')
               token.attrJoin(key, value)
