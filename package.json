@@ -1,7 +1,7 @@
 {
   "name": "@comark/markdown-it",
   "type": "module",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "packageManager": "pnpm@10.30.3",
   "description": "Comark (Component in Markdown) support for markdown-it",
   "license": "MIT",
