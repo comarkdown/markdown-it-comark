@@ -329,7 +329,7 @@ export const MarkdownItMdcBlock: MarkdownIt.PluginSimple = (md) => {
 
       const start = state.bMarks[startLine] + state.tShift[startLine]
 
-      if (!(state.src[start] === '#' && state.src[start + 1] !== ' '))
+      if (!(state.src[start] === '#' && state.src[start + 1] !== ' ' && state.src[start + 1] !== '#'))
         return false
 
       const line = state.src.slice(start, state.eMarks[startLine])
