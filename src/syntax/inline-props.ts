@@ -2,7 +2,6 @@ import type MarkdownIt from 'markdown-it'
 import type Renderer from 'markdown-it/lib/renderer.mjs'
 import type Token from 'markdown-it/lib/token.mjs'
 
-import TokenClass from 'markdown-it/lib/token.mjs'
 import { searchProps } from '../parse/props'
 
 export interface MdcInlinePropsOptions {
@@ -228,9 +227,12 @@ function wrapRenderInline(renderInline: Renderer['renderInline']): Renderer['ren
 
         // If the previous token is a text token, we need to wrap it in a span
         if (!prev.tag && prev.type === 'text') {
-          prev = new TokenClass('mdc_inline_span', 'span', 1)
+          // Use the token's own class instead of importing `markdown-it/lib/token.mjs`,
+          // which markdown-it v15 no longer exposes via its `exports` map.
+          const TokenCtor = token.constructor as typeof Token
+          prev = new TokenCtor('mdc_inline_span', 'span', 1)
           tokens.splice(index - 1, 0, prev)
-          const close = new TokenClass('mdc_inline_span', 'span', -1)
+          const close = new TokenCtor('mdc_inline_span', 'span', -1)
           tokens.splice(index + 2, 0, close)
         }
         // If the previous token is a closing tag, we need to find the matching opening tag
