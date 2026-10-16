@@ -109,6 +109,7 @@ function applyAttrs(token: Token, attrs: [string, string][] | null) {
 }
 
 const WRAPPER_TAGS = new Set(['ul', 'ol', 'table', 'blockquote', 'pre'])
+const NATIVE_WRAPPED_TYPES = new Set(['bullet_list_open', 'ordered_list_open', 'table_open', 'blockquote_open'])
 
 /**
  * When `::ul`, `::ol`, `::table`, `::blockquote` or `::pre` wraps exactly one
@@ -138,8 +139,10 @@ function foldWrapperBlocks(tokens: Token[]) {
       return
     }
 
-    // `::ul`, `::ol`, `::table`, `::blockquote` wrapping a matching open/close pair
-    if (inner.nesting !== 1 || inner.tag !== wrapperOpen.tag || !inner.type.endsWith('_open'))
+    // `::ul`, `::ol`, `::table`, `::blockquote` wrapping the matching native element.
+    // Only native markdown tokens are folded: a wrapper around another wrapper
+    // (e.g. `::ol` > `:::ol`) is left alone so wrapper logic runs once per element.
+    if (!NATIVE_WRAPPED_TYPES.has(inner.type) || inner.tag !== wrapperOpen.tag)
       return
 
     const closeType = inner.type.replace(/_open$/, '_close')
