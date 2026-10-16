@@ -72,55 +72,24 @@ export const MarkdownItInlineProps: MarkdownIt.PluginWithOptions<MdcInlinePropsO
         applyTrailingPropsToParent(token, prev)
     })
 
-    // When `::ul` or `::ol` wraps markdown list content, markdown-it creates
-    // a nested list token with the same tag as the outer `mdc_block`.
-    // Hide that inner list only when it is the block's sole child.
-
-    const listTypes = {
-      bullet_list_open: {
-        closeType: 'bullet_list_close',
-        tag: 'ul',
-      },
-      ordered_list_open: {
-        closeType: 'ordered_list_close',
-        tag: 'ol',
-      },
-    } as const
-
-    tokens.forEach((tokenOpen, index) => {
-      const list = listTypes[tokenOpen.type as keyof typeof listTypes]
-      if (!list)
-        return
-
-      const prev = tokens[index - 1]
-      if (!prev || prev.type !== 'mdc_block_open' || prev.tag !== list.tag)
-        return
-
-      // find the matching close token
-      let closeIndex = index + 1
-      while (closeIndex < tokens.length) {
-        const close = tokens[closeIndex]
-        if (close.type === list.closeType && close.level === tokenOpen.level)
-          break
-        closeIndex += 1
-      }
-      const tokenClose = tokens[closeIndex]
-      if (tokenClose?.type !== list.closeType)
-        return
-
-      // When the matching `mdc_block` close token has the same list tag,
-      // the list tokens are the duplicate wrapper and can be hidden.
-      const next = tokens[closeIndex + 1]
-      if (next?.type === 'mdc_block_close' && next.tag === list.tag) {
-        // Carry over attributes from the hidden list (e.g. `start` on `ol`)
-        // so they are not lost. Attributes set explicitly on the wrapper win.
-        mergeAttrs(prev, tokenOpen.attrs)
-        tokenOpen.hidden = true
-        tokenClose.hidden = true
-      }
-    })
+    foldWrapperBlocks(tokens)
 
     return tokens
+  }
+
+  // `::pre` wrappers are folded into the fence / code block itself, so the
+  // wrapper attributes have to be injected into the rendered `<pre>` tag.
+  for (const type of ['fence', 'code_block'] as const) {
+    const original = md.renderer.rules[type]
+    md.renderer.rules[type] = function (tokens, idx, options, env, self) {
+      const html = original
+        ? original.call(this, tokens, idx, options, env, self)
+        : self.renderToken(tokens, idx, options)
+      const attrs = tokens[idx].meta?.mdcWrapperAttrs as [string, string][] | undefined
+      if (!attrs?.length)
+        return html
+      return html.replace(/<pre\b/, `<pre${self.renderAttrs({ attrs } as Token)}`)
+    }
   }
 
   // Replace the inline renderer to apply the props to the previous token
@@ -136,6 +105,64 @@ function applyAttrs(token: Token, attrs: [string, string][] | null) {
       token.attrJoin('class', value)
     else
       token.attrSet(key, value)
+  })
+}
+
+const WRAPPER_TAGS = new Set(['ul', 'ol', 'table', 'blockquote', 'pre'])
+
+/**
+ * When `::ul`, `::ol`, `::table`, `::blockquote` or `::pre` wraps exactly one
+ * child with the same tag, markdown-it renders the tag twice. Fold them into a
+ * single element carrying the attributes of both (the wrapper's win).
+ */
+function foldWrapperBlocks(tokens: Token[]) {
+  tokens.forEach((wrapperOpen, index) => {
+    if (wrapperOpen.type !== 'mdc_block_open' || !WRAPPER_TAGS.has(wrapperOpen.tag))
+      return
+
+    const inner = tokens[index + 1]
+    if (!inner)
+      return
+
+    // `::pre` wrapping a fence / indented code block (single self-contained token)
+    if (wrapperOpen.tag === 'pre') {
+      if (inner.type !== 'fence' && inner.type !== 'code_block')
+        return
+      const wrapperClose = tokens[index + 2]
+      if (wrapperClose?.type !== 'mdc_block_close' || wrapperClose.tag !== 'pre')
+        return
+
+      inner.meta = { ...inner.meta, mdcWrapperAttrs: wrapperOpen.attrs ?? [] }
+      wrapperOpen.hidden = true
+      wrapperClose.hidden = true
+      return
+    }
+
+    // `::ul`, `::ol`, `::table`, `::blockquote` wrapping a matching open/close pair
+    if (inner.nesting !== 1 || inner.tag !== wrapperOpen.tag || !inner.type.endsWith('_open'))
+      return
+
+    const closeType = inner.type.replace(/_open$/, '_close')
+    let closeIndex = index + 2
+    while (closeIndex < tokens.length) {
+      const close = tokens[closeIndex]
+      if (close.type === closeType && close.level === inner.level)
+        break
+      closeIndex += 1
+    }
+    const innerClose = tokens[closeIndex]
+    if (innerClose?.type !== closeType)
+      return
+
+    // The inner element must be the wrapper's sole child
+    const wrapperClose = tokens[closeIndex + 1]
+    if (wrapperClose?.type !== 'mdc_block_close' || wrapperClose.tag !== wrapperOpen.tag)
+      return
+
+    // Carry over attributes from the hidden element (e.g. `start` on `ol`)
+    mergeAttrs(wrapperOpen, inner.attrs)
+    inner.hidden = true
+    innerClose.hidden = true
   })
 }
 
