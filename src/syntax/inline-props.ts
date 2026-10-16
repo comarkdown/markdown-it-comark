@@ -79,12 +79,12 @@ export const MarkdownItInlineProps: MarkdownIt.PluginWithOptions<MdcInlinePropsO
     const listTypes = {
       bullet_list_open: {
         closeType: 'bullet_list_close',
-        tag: 'ul'
+        tag: 'ul',
       },
       ordered_list_open: {
         closeType: 'ordered_list_close',
-        tag: 'ol'
-      }
+        tag: 'ol',
+      },
     } as const
 
     tokens.forEach((tokenOpen, index) => {
@@ -105,13 +105,16 @@ export const MarkdownItInlineProps: MarkdownIt.PluginWithOptions<MdcInlinePropsO
         closeIndex += 1
       }
       const tokenClose = tokens[closeIndex]
-      if (tokenClose.type !== list.closeType)
+      if (tokenClose?.type !== list.closeType)
         return
 
       // When the matching `mdc_block` close token has the same list tag,
       // the list tokens are the duplicate wrapper and can be hidden.
       const next = tokens[closeIndex + 1]
-      if (next.type === 'mdc_block_close' && next.tag === list.tag) {
+      if (next?.type === 'mdc_block_close' && next.tag === list.tag) {
+        // Carry over attributes from the hidden list (e.g. `start` on `ol`)
+        // so they are not lost. Attributes set explicitly on the wrapper win.
+        mergeAttrs(prev, tokenOpen.attrs)
         tokenOpen.hidden = true
         tokenClose.hidden = true
       }
@@ -133,6 +136,15 @@ function applyAttrs(token: Token, attrs: [string, string][] | null) {
       token.attrJoin('class', value)
     else
       token.attrSet(key, value)
+  })
+}
+
+function mergeAttrs(target: Token, attrs: [string, string][] | null) {
+  attrs?.forEach(([key, value]) => {
+    if (key === 'class')
+      target.attrJoin('class', value)
+    else if (target.attrIndex(key) < 0)
+      target.attrSet(key, value)
   })
 }
 
